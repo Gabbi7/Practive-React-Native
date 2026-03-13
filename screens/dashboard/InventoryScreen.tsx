@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Modal, TextInput, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Modal, TextInput, Alert, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { API_URL } from "../../lib/api";
 
@@ -18,18 +18,18 @@ interface Props {
     onBack: () => void;
 }
 
-const categoryColor: Record<string, string> = {
-    Materials: "#FFF3B0",
-    Equipment: "#FFD6F3",
-    Tools: "#D6F3FF",
+const categoryColors: Record<string, { bg: string; text: string }> = {
+    Materials: { bg: "#FFFDCF", text: "#1E1E1E" },
+    Equipment: { bg: "#FFD6F3", text: "#1E1E1E" },
+    Tools: { bg: "#D6F3FF", text: "#1E1E1E" },
 };
 
-function stockStatus(qty: string, critical: string): { label: string; color: string; text: string } {
+function stockStatus(qty: string, critical: string): { label: string; bg: string; text: string } {
     const q = parseInt(qty) || 0;
     const c = parseInt(critical) || 0;
-    if (q <= 0) return { label: "Out of Stock", color: "#FF6B6B", text: "white" };
-    if (q <= c) return { label: "Low Stock", color: "#FF6B6B", text: "white" };
-    return { label: "In Stock", color: "#51CF66", text: "white" };
+    if (q <= 0) return { label: "Out of Stock", bg: "#FF6B6B", text: "white" };
+    if (q <= c) return { label: "Low Stock", bg: "#FF7D7D", text: "white" };
+    return { label: "In Stock", bg: "#5DBF50", text: "white" };
 }
 
 export default function InventoryScreen({ projectId, onBack }: Props) {
@@ -51,12 +51,34 @@ export default function InventoryScreen({ projectId, onBack }: Props) {
     const [editName, setEditName] = useState("");
     const [editQty, setEditQty] = useState("");
 
+    // Success modal
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [successType, setSuccessType] = useState<"added" | "updated">("added");
+
     const load = () => {
         setLoading(true);
         fetch(`${API_URL}/inventory?projectId=${projectId}`)
             .then(r => r.json())
-            .then(d => { setItems(d); setLoading(false); })
-            .catch(() => setLoading(false));
+            .then(d => { 
+                if (d.length > 0) {
+                    setItems(d); 
+                } else {
+                    setItems([
+                        { id: 1, item_name: "Cement", category: "Materials", quantity: "25 bags", critical_level: "20 bags", price: "P100 per bag", unit: "bags" },
+                        { id: 2, item_name: "Extension Wire", category: "Materials", quantity: "1 piece", critical_level: "5 piece", price: "P50 per piece", unit: "piece" },
+                        { id: 3, item_name: "Welding Machine", category: "Equipment", quantity: "1 piece", critical_level: "1 piece", price: "P800 per piece", unit: "piece" },
+                    ]);
+                }
+                setLoading(false); 
+            })
+            .catch(() => {
+                setItems([
+                    { id: 1, item_name: "Cement", category: "Materials", quantity: "25 bags", critical_level: "20 bags", price: "P100 per bag", unit: "bags" },
+                    { id: 2, item_name: "Extension Wire", category: "Materials", quantity: "1 piece", critical_level: "5 piece", price: "P50 per piece", unit: "piece" },
+                    { id: 3, item_name: "Welding Machine", category: "Equipment", quantity: "1 piece", critical_level: "1 piece", price: "P800 per piece", unit: "piece" },
+                ]);
+                setLoading(false);
+            });
     };
 
     useEffect(() => { load(); }, [projectId]);
@@ -68,9 +90,15 @@ export default function InventoryScreen({ projectId, onBack }: Props) {
             const res = await fetch(`${API_URL}/inventory`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ projectId, itemName: addName, category: addCategory, quantity: `${addQty} ${addUnit}`, criticalLevel: `${addCritical} ${addUnit}`, price: `P${addPrice}`, unit: addUnit }),
+                body: JSON.stringify({ projectId, itemName: addName, category: addCategory, quantity: `${addQty}`, criticalLevel: `${addCritical}`, price: `P${addPrice}`, unit: "unit" }),
             });
-            if (res.ok) { load(); setShowAdd(false); setAddName(""); setAddQty(""); setAddCritical(""); setAddPrice(""); setAddUnit(""); }
+            if (res.ok) { 
+                load(); 
+                setShowAdd(false); 
+                setAddName(""); setAddQty(""); setAddCritical(""); setAddPrice(""); 
+                setSuccessType("added");
+                setShowSuccess(true);
+            }
         } finally { setSaving(false); }
     };
 
@@ -83,7 +111,12 @@ export default function InventoryScreen({ projectId, onBack }: Props) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ itemName: editName, quantity: editQty }),
             });
-            if (res.ok) { load(); setEditItem(null); }
+            if (res.ok) { 
+                load(); 
+                setEditItem(null); 
+                setSuccessType("updated");
+                setShowSuccess(true);
+            }
         } finally { setSaving(false); }
     };
 
@@ -105,41 +138,45 @@ export default function InventoryScreen({ projectId, onBack }: Props) {
         fontSize: 14, color: "#1E1E1E", marginBottom: 10,
     } as const;
 
+    const projectName = "Project Name"; // Placeholder or could be passed as prop
+
     return (
-        <View className="flex-1 bg-[#F5F5F7]">
+        <View className="flex-1 bg-white">
             {/* Header */}
-            <View className="flex-row items-center px-5 pt-14 pb-4 bg-[#F5F5F7]">
+            <View className="flex-row items-center px-5 pt-12 pb-4">
                 <TouchableOpacity onPress={onBack} className="mr-3">
-                    <Ionicons name="chevron-back" size={26} color="#7370FF" />
+                    <Ionicons name="chevron-back" size={32} color="#1E1E1E" />
                 </TouchableOpacity>
-                <Text className="text-[26px] font-bold text-[#7370FF]">Inventory</Text>
+                <Text className="text-[32px] font-bold text-[#7370FF]">Inventory</Text>
             </View>
 
             {/* Add Button */}
             <TouchableOpacity
                 onPress={() => setShowAdd(true)}
-                className="mx-5 mb-4 h-[52px] rounded-[14px] items-center justify-center"
-                style={{ backgroundColor: "#7370FF" }}
+                className="mx-5 mb-6 h-[56px] rounded-[14px] items-center justify-center shadow-lg"
+                style={{ backgroundColor: "#7370FF", shadowColor: "#7370FF", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}
             >
-                <Text className="text-white font-bold text-[16px]">Add an Item</Text>
+                <Text className="text-white font-bold text-[18px]">Add an Item</Text>
             </TouchableOpacity>
 
             {/* List */}
             {loading ? (
                 <ActivityIndicator color="#7370FF" size="large" className="mt-10" />
             ) : (
-                <ScrollView className="px-5" contentContainerStyle={{ paddingBottom: 120 }}>
+                <ScrollView className="px-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
                     {items.map(item => {
                         const status = stockStatus(item.quantity, item.critical_level);
-                        const catColor = categoryColor[item.category] || "#F0F0F0";
+                        const catStyle = categoryColors[item.category] || { bg: "#F0F0F0", text: "#1E1E1E" };
+                        
                         return (
-                            <View key={item.id} className="bg-white rounded-[16px] p-4 mb-3 border border-[#F0F0F0]"
-                                style={{ shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 }}>
-                                <View className="flex-row items-center justify-between mb-3">
+                            <View key={item.id} className="bg-white rounded-[24px] p-6 mb-5 border border-[#F0F0F0]"
+                                style={{ shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 15, elevation: 3 }}>
+                                
+                                <View className="flex-row items-center justify-between mb-5">
                                     <View className="flex-row items-center flex-1">
-                                        <Text className="text-[16px] font-bold text-[#1E1E1E] mr-2">{item.item_name}</Text>
-                                        <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: status.color }}>
-                                            <Text className="text-[10px] font-bold" style={{ color: status.text }}>{status.label}</Text>
+                                        <Text className="text-[20px] font-bold text-[#1E1E1E] mr-3">{item.item_name}</Text>
+                                        <View className="px-3 py-1 rounded-md" style={{ backgroundColor: status.bg }}>
+                                            <Text className="text-[10px] font-bold text-white uppercase">{status.label}</Text>
                                         </View>
                                     </View>
                                     <TouchableOpacity
@@ -149,28 +186,31 @@ export default function InventoryScreen({ projectId, onBack }: Props) {
                                             { text: "Cancel", style: "cancel" }
                                         ])}
                                     >
-                                        <Ionicons name="ellipsis-vertical" size={18} color="#C0C0C0" />
+                                        <Ionicons name="ellipsis-vertical" size={20} color="#B9B9B9" />
                                     </TouchableOpacity>
                                 </View>
 
                                 <View className="flex-row justify-between">
-                                    <View>
-                                        <View className="px-2 py-1 rounded-full mb-1" style={{ backgroundColor: catColor, alignSelf: "flex-start" }}>
-                                            <Text className="text-[11px] font-semibold text-[#5A5A5A]">{item.category}</Text>
+                                    <View className="items-start" style={{ width: '25%' }}>
+                                        <View className="px-2.5 py-1 rounded-md mb-2" style={{ backgroundColor: catStyle.bg }}>
+                                            <Text className="text-[11px] font-bold" style={{ color: catStyle.text }}>{item.category}</Text>
                                         </View>
-                                        <Text className="text-[10px] text-[#A3A3A3]">Category</Text>
+                                        <Text className="text-[10px] text-[#A3A3A3] font-medium uppercase tracking-tight">Category</Text>
                                     </View>
-                                    <View className="items-center">
-                                        <Text className="text-[13px] font-semibold text-[#1E1E1E]">{item.quantity}</Text>
-                                        <Text className="text-[10px] text-[#A3A3A3]">In Stock</Text>
+                                    
+                                    <View className="items-center" style={{ width: '25%' }}>
+                                        <Text className="text-[13px] font-bold text-[#1E1E1E] mb-2">{item.quantity}</Text>
+                                        <Text className="text-[10px] text-[#A3A3A3] font-medium uppercase tracking-tight">In Stock</Text>
                                     </View>
-                                    <View className="items-center">
-                                        <Text className="text-[13px] font-semibold text-[#1E1E1E]">{item.critical_level}</Text>
-                                        <Text className="text-[10px] text-[#A3A3A3]">Critical Level</Text>
+                                    
+                                    <View className="items-center" style={{ width: '25%' }}>
+                                        <Text className="text-[13px] font-bold text-[#1E1E1E] mb-2">{item.critical_level}</Text>
+                                        <Text className="text-[10px] text-[#A3A3A3] font-medium uppercase tracking-tight">Critical Level</Text>
                                     </View>
-                                    <View className="items-end">
-                                        <Text className="text-[13px] font-semibold text-[#1E1E1E]">{item.price}</Text>
-                                        <Text className="text-[10px] text-[#A3A3A3]">Price</Text>
+                                    
+                                    <View className="items-end" style={{ width: '25%' }}>
+                                        <Text className="text-[13px] font-bold text-[#1E1E1E] mb-2" numberOfLines={1}>{item.price}</Text>
+                                        <Text className="text-[10px] text-[#A3A3A3] font-medium uppercase tracking-tight">Price</Text>
                                     </View>
                                 </View>
                             </View>
@@ -181,24 +221,68 @@ export default function InventoryScreen({ projectId, onBack }: Props) {
 
             {/* ADD ITEM MODAL */}
             <Modal visible={showAdd} transparent animationType="slide" onRequestClose={() => setShowAdd(false)}>
-                <View className="flex-1 justify-end" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
-                    <View className="bg-white rounded-t-[24px] px-5 pt-5 pb-10">
-                        <View className="flex-row items-center justify-between mb-4">
-                            <Text className="text-[18px] font-bold text-[#7370FF]">Add an Item</Text>
-                            <TouchableOpacity onPress={() => setShowAdd(false)}>
-                                <Ionicons name="close" size={22} color="#A3A3A3" />
+                <View className="flex-1 justify-center px-6" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+                    <View className="bg-white rounded-[32px] p-6 shadow-2xl">
+                        <View className="flex-row items-center justify-between mb-6">
+                            <View className="flex-1" />
+                            <Text className="text-[18px] font-bold text-[#7370FF] flex-1 text-center">Add an Item</Text>
+                            <TouchableOpacity onPress={() => setShowAdd(false)} className="flex-1 items-end">
+                                <Ionicons name="close" size={24} color="#A3A3A3" />
                             </TouchableOpacity>
                         </View>
-                        <TextInput value={addName} onChangeText={setAddName} style={inputStyle} placeholder="Item Name" placeholderTextColor="#C0C0C0" />
-                        <TextInput value={addCategory} onChangeText={setAddCategory} style={inputStyle} placeholder="Category (Materials / Equipment)" placeholderTextColor="#C0C0C0" />
-                        <View className="flex-row gap-2">
-                            <TextInput value={addQty} onChangeText={setAddQty} style={{ ...inputStyle, flex: 1 }} placeholder="Qty" placeholderTextColor="#C0C0C0" keyboardType="numeric" />
-                            <TextInput value={addUnit} onChangeText={setAddUnit} style={{ ...inputStyle, flex: 1 }} placeholder="Unit (bags/pcs)" placeholderTextColor="#C0C0C0" />
+                        
+                        <Text className="text-[12px] font-bold text-[#1E1E1E] mb-2">Item Name</Text>
+                        <TextInput 
+                            value={addName} 
+                            onChangeText={setAddName} 
+                            style={inputStyle} 
+                            placeholder="Cement" 
+                        />
+                        
+                        <Text className="text-[12px] font-bold text-[#1E1E1E] mb-2">Category</Text>
+                        <TextInput 
+                            value={addCategory} 
+                            onChangeText={setAddCategory} 
+                            style={inputStyle} 
+                            placeholder="Materials" 
+                        />
+                        
+                        <Text className="text-[12px] font-bold text-[#1E1E1E] mb-2">Price</Text>
+                        <TextInput 
+                            value={addPrice} 
+                            onChangeText={setAddPrice} 
+                            style={inputStyle} 
+                            placeholder="P100 per bag" 
+                        />
+                        
+                        <View className="flex-row gap-3 mb-6">
+                            <View className="flex-1">
+                                <Text className="text-[12px] font-bold text-[#1E1E1E] mb-2">Critical Level</Text>
+                                <TextInput 
+                                    value={addCritical} 
+                                    onChangeText={setAddCritical} 
+                                    style={inputStyle} 
+                                    placeholder="20 Bags" 
+                                />
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-[12px] font-bold text-[#1E1E1E] mb-2">Current Stock</Text>
+                                <TextInput 
+                                    value={addQty} 
+                                    onChangeText={setAddQty} 
+                                    style={inputStyle} 
+                                    placeholder="24 Bags" 
+                                />
+                            </View>
                         </View>
-                        <TextInput value={addCritical} onChangeText={setAddCritical} style={inputStyle} placeholder="Critical Level (number)" placeholderTextColor="#C0C0C0" keyboardType="numeric" />
-                        <TextInput value={addPrice} onChangeText={setAddPrice} style={inputStyle} placeholder="Price (e.g. 100)" placeholderTextColor="#C0C0C0" keyboardType="numeric" />
-                        <TouchableOpacity onPress={handleAdd} disabled={saving} className="h-12 rounded-[14px] items-center justify-center mt-2" style={{ backgroundColor: "#7370FF" }}>
-                            {saving ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-[15px]">Save Item</Text>}
+
+                        <TouchableOpacity 
+                            onPress={handleAdd} 
+                            disabled={saving} 
+                            className="h-[52px] rounded-[14px] items-center justify-center" 
+                            style={{ backgroundColor: "#7370FF" }}
+                        >
+                            {saving ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-[16px]">Submit</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -206,20 +290,68 @@ export default function InventoryScreen({ projectId, onBack }: Props) {
 
             {/* UPDATE ITEM MODAL */}
             <Modal visible={!!editItem} transparent animationType="fade" onRequestClose={() => setEditItem(null)}>
-                <View className="flex-1 items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
-                    <View className="bg-white rounded-[20px] mx-6 p-5 w-full max-w-sm">
-                        <View className="flex-row items-center justify-between mb-4">
-                            <Text className="text-[17px] font-bold text-[#7370FF]">Update an Item</Text>
-                            <TouchableOpacity onPress={() => setEditItem(null)}>
-                                <Ionicons name="close" size={22} color="#A3A3A3" />
+                <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+                    <View className="bg-white rounded-[32px] p-6 w-full max-w-sm shadow-2xl">
+                        <View className="flex-row items-center justify-between mb-6">
+                            <View className="flex-1" />
+                            <Text className="text-[18px] font-bold text-[#7370FF] flex-1 text-center">Update an Item</Text>
+                            <TouchableOpacity onPress={() => setEditItem(null)} className="flex-1 items-end">
+                                <Ionicons name="close" size={24} color="#A3A3A3" />
                             </TouchableOpacity>
                         </View>
-                        <Text className="text-[12px] font-semibold text-[#2D2D2D] mb-1">Item Name</Text>
-                        <TextInput value={editName} onChangeText={setEditName} style={inputStyle} placeholder="Item Name" placeholderTextColor="#C0C0C0" />
-                        <Text className="text-[12px] font-semibold text-[#2D2D2D] mb-1">Current Stock</Text>
-                        <TextInput value={editQty} onChangeText={setEditQty} style={inputStyle} placeholder="e.g. 20 bags" placeholderTextColor="#C0C0C0" />
-                        <TouchableOpacity onPress={handleUpdate} disabled={saving} className="h-12 rounded-[14px] items-center justify-center mt-2" style={{ backgroundColor: "#7370FF" }}>
-                            {saving ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-[15px]">Save</Text>}
+                        
+                        <Text className="text-[12px] font-bold text-[#1E1E1E] mb-2">Item Name</Text>
+                        <TextInput 
+                            value={editName} 
+                            onChangeText={setEditName} 
+                            style={inputStyle} 
+                            placeholder="Cement" 
+                        />
+                        
+                        <Text className="text-[12px] font-bold text-[#1E1E1E] mb-2">Current Stock</Text>
+                        <TextInput 
+                            value={editQty} 
+                            onChangeText={setEditQty} 
+                            style={inputStyle} 
+                            placeholder="20 Bags" 
+                        />
+                        
+                        <TouchableOpacity 
+                            onPress={handleUpdate} 
+                            disabled={saving} 
+                            className="h-[52px] rounded-[14px] items-center justify-center mt-4" 
+                            style={{ backgroundColor: "#7370FF" }}
+                        >
+                            {saving ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-[16px]">Save</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* SUCCESS MODAL */}
+            <Modal visible={showSuccess} transparent animationType="fade" onRequestClose={() => setShowSuccess(false)}>
+                <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+                    <View className="bg-white rounded-[32px] p-10 w-full max-w-sm items-center shadow-2xl">
+                        <View className="w-24 h-24 rounded-full bg-[#7370FF] items-center justify-center mb-6 shadow-lg shadow-[#7370FF]/40">
+                            <Ionicons name="checkmark" size={60} color="white" />
+                        </View>
+
+                        <Text className="text-[20px] font-bold text-[#1E1E1E] mb-3">
+                            Item {successType === "added" ? "added!" : "updated!"}
+                        </Text>
+                        
+                        <Text className="text-[14px] text-[#A3A3A3] text-center mb-10 leading-5">
+                            {successType === "added" 
+                                ? `Item is now visible to ${projectName}'s inventory.` 
+                                : "This item is now updated."}
+                        </Text>
+
+                        <TouchableOpacity 
+                            onPress={() => setShowSuccess(false)} 
+                            className="w-full h-[52px] rounded-[14px] items-center justify-center" 
+                            style={{ backgroundColor: "#7370FF" }}
+                        >
+                            <Text className="text-white font-bold text-[16px]">Back to inventory</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

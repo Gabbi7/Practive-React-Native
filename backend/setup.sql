@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS tasks (
   due_date TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   priority TEXT NOT NULL DEFAULT 'medium',
+  description TEXT,
+  assigned_to TEXT,
+  phase TEXT,
+  milestone TEXT,
+  start_date TEXT,
   user_id INTEGER REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -40,6 +45,19 @@ CREATE TABLE IF NOT EXISTS notifications (
   message TEXT NOT NULL,
   time TEXT NOT NULL,
   is_read BOOLEAN DEFAULT FALSE,
+  user_id INTEGER REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS site_progress (
+  id SERIAL PRIMARY KEY,
+  project_name TEXT NOT NULL,
+  partner TEXT,
+  milestone TEXT,
+  location TEXT,
+  notes TEXT,
+  photo_url TEXT,
+  glass_count INTEGER DEFAULT 0,
   user_id INTEGER REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

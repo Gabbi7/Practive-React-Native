@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Animated } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Animated, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useRef } from 'react';
@@ -8,8 +8,13 @@ import Notifications from './Notifications';
 import MoreScreen from '../profile/MoreScreen';
 import UploadSiteProgressScreen from './UploadSiteProgressScreen';
 import ProjectDetailScreen from './ProjectDetailScreen';
+import AddTaskScreen from './AddTaskScreen';
+import TaskDetailScreen from './TaskDetailScreen';
+import InventoryScreen from './InventoryScreen';
 import { API_URL } from '../../lib/api';
 import { UserInfo } from '../../App';
+import { getBuildsphereAI } from '../../lib/generative-ai';
+import { Alert } from "react-native";
 
 interface DashboardScreenProps {
     onLogout: () => void;
@@ -38,19 +43,33 @@ export default function DashboardScreen({ onLogout, user: initialUser }: Dashboa
     const [fabOpen, setFabOpen] = useState(false);
     const [showSiteProgress, setShowSiteProgress] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+    const [showAddTask, setShowAddTask] = useState(false);
+    const [selectedTask, setSelectedTask] = useState<any>(null);
+    const [showInventory, setShowInventory] = useState(false);
+    const [inventoryProjectId, setInventoryProjectId] = useState<number | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
     const fabAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         fetch(`${API_URL}/projects`)
             .then(res => res.json())
-            .then(data => { setProjects(data); setLoadingProjects(false); })
+            .then(data => {
+                const mappedData = data.map((p: any) => {
+                    if (p.image_url === 'building.jpg') p.image = require('../../assets/building.jpg');
+                    if (p.image_url === 'Gemini_Generated_Image_mcjrmgmcjrmgmcjr.png') p.image = require('../../assets/Gemini_Generated_Image_mcjrmgmcjrmgmcjr.png');
+                    if (p.image_url === 'pexels-annechois-6148374.jpg') p.image = require('../../assets/pexels-annechois-6148374.jpg');
+                    return p;
+                });
+                setProjects(mappedData);
+                setLoadingProjects(false);
+            })
             // .catch(() => setLoadingProjects(false)); eto yung oopen 
             .catch(() => {
                 // If offline, show some dummy projects for demo purposes
                 setProjects([
-                    { id: 1, name: "High Rise Building", location: "123 Main St", color: "#FF6B6B", status: "Active", image: require('../../assets/DMCI_2.jpg') }, // aalising image if ayaw 
-                    { id: 2, name: "DMCI Homes", location: "456 Market St", color: "#4ECDC4", status: "Active", image: require('../../assets/DMCI_home.jpg') }, // aalising lang yung image if ayaw 
-                    { id: 3, name: "Sunset Apartments", location: "789 Ocean Blvd", color: "#45B7D1", status: "Planning" }
+                    { id: 1, name: "High Rise Building", location: "123 Main St", color: "#FF6B6B", status: "Active", image: require('../../assets/building.jpg') }, // aalising image if ayaw 
+                    { id: 2, name: "DMCI Homes", location: "456 Market St", color: "#4ECDC4", status: "Active", image: require('../../assets/Gemini_Generated_Image_mcjrmgmcjrmgmcjr.png') }, // aalising lang yung image if ayaw 
+                    { id: 3, name: "Sunset Apartments", location: "789 Ocean Blvd", color: "#45B7D1", status: "Planning", image: require('../../assets/pexels-annechois-6148374.jpg') } // aalising lang yung image if ayaw 
                 ] as any);
                 setLoadingProjects(false);
             });
@@ -60,6 +79,25 @@ export default function DashboardScreen({ onLogout, user: initialUser }: Dashboa
         const toValue = fabOpen ? 0 : 1;
         Animated.spring(fabAnim, { toValue, useNativeDriver: true, friction: 6 }).start();
         setFabOpen(!fabOpen);
+    };
+
+    const handleAskAI = async () => {
+        if (projects.length === 0) {
+            Alert.alert("No Projects", "Add a project first to get AI suggestions.");
+            return;
+        }
+
+        setAiLoading(true);
+        try {
+            const projectNames = projects.map(p => p.name).join(", ");
+            const prompt = `I am using a construction management app called Buildsphere. I have these projects: ${projectNames}. Give me one quick, expert advice or tip for managing these projects today. Keep it short (2-3 sentences).`;
+            const response = await getBuildsphereAI(prompt);
+            Alert.alert("Buildsphere AI", response);
+        } catch (error) {
+            Alert.alert("AI Error", "Could not reach Gemini AI. Check your connection or API key.");
+        } finally {
+            setAiLoading(false);
+        }
     };
 
     const showFab = activeTab !== 'more';
@@ -80,7 +118,23 @@ export default function DashboardScreen({ onLogout, user: initialUser }: Dashboa
                                 Welcome back, {user.firstName}! 👋
                             </Text>
                             <View className="bg-white rounded-[20px] p-5 shadow-sm mb-6 flex-row justify-between items-center border border-gray-100">
-                                <Text className="text-[#1E1E1E] text-base font-semibold">Ongoing Projects</Text>
+                                <View>
+                                    <Text className="text-[#1E1E1E] text-base font-semibold">Ongoing Projects</Text>
+                                    <TouchableOpacity 
+                                        onPress={handleAskAI} 
+                                        disabled={aiLoading}
+                                        className="mt-2 bg-[#F0EEFF] px-3 py-1.5 rounded-full self-start flex-row items-center"
+                                    >
+                                        {aiLoading ? (
+                                            <ActivityIndicator size="small" color="#6C63FF" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="sparkles" size={14} color="#6C63FF" />
+                                                <Text className="text-[#6C63FF] text-[12px] font-bold ml-1">Ask AI</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
                                 <Text className="text-[#FFA500] text-3xl font-bold">{projects.length}</Text>
                             </View>
                             <Text className="text-[#1E1E1E] text-lg font-bold mb-4">Projects</Text>
@@ -97,7 +151,7 @@ export default function DashboardScreen({ onLogout, user: initialUser }: Dashboa
                             )}
                         </ScrollView>
                     ) : activeTab === 'mywork' ? (
-                        <MyWork userId={user.id} />
+                        <MyWork userId={user.id} onTaskSelect={(task) => setSelectedTask(task)} />
                     ) : activeTab === 'notifications' ? (
                         <Notifications userId={user.id} />
                     ) : (
@@ -133,6 +187,15 @@ export default function DashboardScreen({ onLogout, user: initialUser }: Dashboa
                                             setFabOpen(false);
                                             fabAnim.setValue(0);
                                             if (action.key === 'site') setShowSiteProgress(true);
+                                            if (action.key === 'task') setShowAddTask(true);
+                                            if (action.key === 'inventory') {
+                                                if (projects.length > 0) {
+                                                    setInventoryProjectId(projects[0].id);
+                                                    setShowInventory(true);
+                                                } else {
+                                                    Alert.alert("No Projects", "You need at least one project to update inventory.");
+                                                }
+                                            }
                                         }}
                                         className="flex-row items-center bg-white rounded-[14px] px-4 py-3"
                                         style={{ shadowColor: "#7370FF", shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 }}
@@ -186,9 +249,35 @@ export default function DashboardScreen({ onLogout, user: initialUser }: Dashboa
             <UploadSiteProgressScreen
                 visible={showSiteProgress}
                 user={user}
-                projects={[]}
+                projects={projects}
                 onClose={() => setShowSiteProgress(false)}
             />
+
+            {/* Add Task Modal */}
+            <AddTaskScreen
+                visible={showAddTask}
+                onClose={() => setShowAddTask(false)}
+                userId={user.id}
+                projects={projects}
+                onTaskAdded={() => {
+                    console.log("Task added, refreshing data...");
+                }}
+            />
+            {/* Task Detail Modal */}
+            <TaskDetailScreen
+                visible={!!selectedTask}
+                task={selectedTask}
+                onClose={() => setSelectedTask(null)}
+            />
+            {/* Inventory Modal */}
+            {showInventory && inventoryProjectId && (
+                <Modal visible={showInventory} animationType="slide" transparent={false}>
+                    <InventoryScreen 
+                        projectId={inventoryProjectId} 
+                        onBack={() => setShowInventory(false)} 
+                    />
+                </Modal>
+            )}
         </View>
     );
 }

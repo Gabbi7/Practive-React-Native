@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { API_URL } from "../../lib/api";
@@ -9,118 +9,162 @@ interface Task {
     title: string;
     project: string;
     due_date: string;
-    status: "pending" | "in-progress" | "completed";
-    priority: "low" | "medium" | "high";
+    status: string;
+    priority: string;
+    description?: string;
+    assigned_to?: string;
+    phase?: string;
+    milestone?: string;
+    start_date?: string;
 }
 
 interface MyWorkProps {
     userId: number;
+    onTaskSelect: (task: Task) => void;
 }
 
-export default function MyWork({ userId }: MyWorkProps) {
+type Tab = "To Do" | "In Progress" | "To Review" | "Completed";
+
+const STATUS_MAP: Record<Tab, string> = {
+    "To Do": "pending",
+    "In Progress": "in-progress",
+    "To Review": "to-review",
+    "Completed": "completed"
+};
+
+export default function MyWork({ userId, onTaskSelect }: MyWorkProps) {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<Tab>("In Progress");
 
     useEffect(() => {
         fetch(`${API_URL}/tasks?userId=${userId}`)
             .then(res => res.json())
-            .then(data => { setTasks(data); setLoading(false); })
+            .then(data => { 
+                setTasks(data); 
+                setLoading(false); 
+            })
             .catch(() => {
-                // If offline, show dummy tasks
+                // Dummy Data matching screenshot feel
                 setTasks([
-                    { id: 1, title: "Review Foundation Plans", project: "High Rise Building", due_date: "Oct 25", status: "in-progress", priority: "high" },
-                    { id: 2, title: "Order Concrete Mix", project: "DMCI Homes", due_date: "Oct 26", status: "pending", priority: "medium" },
-                    { id: 3, title: "Safety Inspection", project: "Sunset Apartments", due_date: "Oct 28", status: "pending", priority: "high" }
+                    { id: 1, title: "Submit shop drawings for approval", project: "Arane Corp", phase: "Preliminary", milestone: "Shop Drawings", status: "in-progress", priority: "high", due_date: "02/18/2026", start_date: "02/11/2026" },
+                    { id: 2, title: "Order Concrete Mix", project: "DMCI Homes", status: "pending", priority: "medium", due_date: "02/20/2026" },
+                    { id: 3, title: "Site Inspection", project: "Sunset Apartments", status: "to-review", priority: "high", due_date: "02/21/2026" },
+                    { id: 4, title: "Foundation Pouring", project: "City Tower A", status: "completed", priority: "high", due_date: "02/10/2026" },
                 ]);
                 setLoading(false);
             });
     }, [userId]);
 
-    const getPriorityColor = (priority: string) => {
-        switch (priority) {
-            case "high": return "#FF6B6B";
-            case "medium": return "#FFA94D";
-            case "low": return "#4DABF7";
-            default: return "#B9B9B9";
-        }
+    const getTabCount = (tab: Tab) => {
+        return tasks.filter(t => t.status === STATUS_MAP[tab]).length;
     };
 
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case "completed": return "checkmark-circle";
-            case "in-progress": return "time";
-            case "pending": return "ellipse-outline";
-            default: return "ellipse-outline";
+    const filteredTasks = tasks.filter(t => t.status === STATUS_MAP[activeTab]);
+
+    const getPriorityColor = (priority: string) => {
+        switch (priority?.toLowerCase()) {
+            case "high": return "#7370FF";
+            case "medium": return "#FFA94D";
+            case "low": return "#4DABF7";
+            default: return "#7370FF";
         }
     };
 
     return (
         <View className="flex-1 bg-white">
             <LinearGradient
-                colors={["rgba(115,112,255,0.16)", "rgba(255,255,255,0)"]}
-                start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                className="absolute top-0 left-0 right-0 h-[200px]"
+                colors={["rgba(115,112,255,0.08)", "rgba(255,255,255,0)"]}
+                className="absolute top-0 left-0 right-0 h-[250px]"
             />
-            <ScrollView className="flex-1 px-6 pt-12">
-                <View className="mb-8">
-                    <Text className="text-[28px] font-bold text-[#1E1E1E]">My Work</Text>
-                    <Text className="text-[14px] text-[#A3A3A3] mt-1">
-                        {loading ? "Loading..." : `${tasks.length} tasks assigned to you`}
-                    </Text>
+            
+            <View className="px-5 pt-8">
+                <Text className="text-[24px] font-bold text-[#1E1E1E]">My work</Text>
+                
+                {/* Tabs */}
+                <View className="flex-row justify-between mt-6 bg-[#F5F5F7] p-1 rounded-2xl h-[90px]">
+                    {(["To Do", "In Progress", "To Review", "Completed"] as Tab[]).map((tab) => {
+                        const isActive = activeTab === tab;
+                        const count = getTabCount(tab);
+                        return (
+                            <TouchableOpacity 
+                                key={tab}
+                                onPress={() => setActiveTab(tab)}
+                                className={`flex-1 items-center justify-center rounded-xl ${isActive ? 'bg-white shadow-sm border border-[#E7E7EE]' : ''}`}
+                            >
+                                <Text className={`text-[20px] font-bold ${isActive ? 'text-[#7370FF]' : 'text-[#A3A3A3]'}`}>
+                                    {count < 10 ? `0${count}` : count}
+                                </Text>
+                                <Text className={`text-[10px] mt-1 font-medium ${isActive ? 'text-[#1E1E1E]' : 'text-[#A3A3A3]'}`}>
+                                    {tab}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
+                {/* Filters */}
+                <View className="flex-row mt-4 px-1">
+                    <TouchableOpacity className="flex-row items-center bg-white border border-[#E7E7EE] px-3 py-1.5 rounded-lg mr-3">
+                        <Ionicons name="swap-vertical" size={14} color="#1E1E1E" />
+                        <Text className="text-[12px] text-[#1E1E1E] ml-1.5">Sort by</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity className="flex-row items-center bg-white border border-[#E7E7EE] px-3 py-1.5 rounded-lg">
+                        <Ionicons name="filter" size={14} color="#1E1E1E" />
+                        <Text className="text-[12px] text-[#1E1E1E] ml-1.5">Filter</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            <ScrollView className="flex-1 mt-4 px-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
                 {loading ? (
-                    <ActivityIndicator color="#7370FF" size="large" />
-                ) : tasks.length === 0 ? (
-                    <View className="flex-1 items-center justify-center mt-20">
-                        <Ionicons name="briefcase-outline" size={64} color="#E0E0E0" />
-                        <Text className="text-[#A3A3A3] text-lg mt-4">No tasks yet</Text>
-                        <Text className="text-[#C3C3C3] text-sm mt-2">Tasks assigned to you will appear here</Text>
+                    <ActivityIndicator color="#7370FF" style={{ marginTop: 40 }} />
+                ) : filteredTasks.length === 0 ? (
+                    <View className="items-center justify-center mt-20">
+                        <Ionicons name="document-text-outline" size={48} color="#E0E0E0" />
+                        <Text className="text-[#A3A3A3] text-[14px] mt-4">No tasks in this category</Text>
                     </View>
                 ) : (
-                    <>
-                        {/* Stats */}
-                        <View className="flex-row gap-3 mb-6">
-                            <View className="flex-1 bg-[#F9F9F9] rounded-xl p-4 border border-[#E7E7EE]">
-                                <Text className="text-[12px] text-[#A3A3A3]">In Progress</Text>
-                                <Text className="text-[24px] font-bold text-[#7370FF] mt-1">
-                                    {tasks.filter(t => t.status === "in-progress").length}
-                                </Text>
-                            </View>
-                            <View className="flex-1 bg-[#F9F9F9] rounded-xl p-4 border border-[#E7E7EE]">
-                                <Text className="text-[12px] text-[#A3A3A3]">Pending</Text>
-                                <Text className="text-[24px] font-bold text-[#FFA94D] mt-1">
-                                    {tasks.filter(t => t.status === "pending").length}
-                                </Text>
-                            </View>
-                        </View>
-                        <Text className="text-[16px] font-semibold text-[#1E1E1E] mb-4">Your Tasks</Text>
-                        {tasks.map(task => (
-                            <TouchableOpacity key={task.id} className="bg-white rounded-xl p-4 mb-3 border border-[#E7E7EE]"
-                                style={{ shadowColor: "#7370FF", shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 }}>
-                                <View className="flex-row items-start justify-between">
-                                    <View className="flex-1">
-                                        <View className="flex-row items-center mb-2">
-                                            <Ionicons name={getStatusIcon(task.status) as any} size={18}
-                                                color={task.status === "completed" ? "#51CF66" : "#7370FF"} />
-                                            <Text className="text-[15px] font-semibold text-[#1E1E1E] ml-2">{task.title}</Text>
-                                        </View>
-                                        <Text className="text-[13px] text-[#A3A3A3] mb-2">📁 {task.project}</Text>
-                                        <View className="flex-row items-center">
-                                            <View className="px-3 py-1 rounded-full mr-2" style={{ backgroundColor: getPriorityColor(task.priority) + "20" }}>
-                                                <Text className="text-[11px] font-semibold" style={{ color: getPriorityColor(task.priority) }}>
-                                                    {task.priority.toUpperCase()}
-                                                </Text>
-                                            </View>
-                                            <Ionicons name="calendar-outline" size={12} color="#A3A3A3" />
-                                            <Text className="text-[12px] text-[#A3A3A3] ml-1">{task.due_date}</Text>
+                    filteredTasks.map((task) => (
+                        <TouchableOpacity 
+                            key={task.id} 
+                            onPress={() => onTaskSelect(task)}
+                            className="bg-white rounded-xl mb-3 overflow-hidden border border-[#F0F0F0]"
+                            style={{ 
+                                shadowColor: "#000", 
+                                shadowOpacity: 0.04, 
+                                shadowRadius: 8, 
+                                shadowOffset: { width: 0, height: 2 },
+                                elevation: 2
+                            }}
+                        >
+                            <View className="flex-row">
+                                <View className="w-1.5 h-full" style={{ backgroundColor: getPriorityColor(task.priority) }} />
+                                <View className="flex-1 p-4 flex-row items-center justify-between">
+                                    <View className="flex-1 mr-3">
+                                        <Text className="text-[15px] font-semibold text-[#1E1E1E]" numberOfLines={1}>
+                                            {task.title}
+                                        </Text>
+                                        <View className="flex-row items-center mt-1.5">
+                                            <Text className="text-[12px] text-[#A3A3A3]">{task.project}</Text>
+                                            {task.phase && (
+                                                <>
+                                                    <View className="w-1 h-1 rounded-full bg-[#D9D9D9] mx-2" />
+                                                    <Text className="text-[12px] text-[#A3A3A3]">{task.phase}</Text>
+                                                </>
+                                            )}
                                         </View>
                                     </View>
-                                    <Ionicons name="chevron-forward" size={20} color="#B9B9B9" />
+                                    <View className="items-end">
+                                        <Ionicons name="ellipsis-horizontal" size={18} color="#B9B9B9" />
+                                        <View className="mt-2 bg-[#F9F9F9] px-2 py-0.5 rounded-md">
+                                            <Text className="text-[10px] text-[#A3A3A3] font-medium">{task.due_date}</Text>
+                                        </View>
+                                    </View>
                                 </View>
-                            </TouchableOpacity>
-                        ))}
-                    </>
+                            </View>
+                        </TouchableOpacity>
+                    ))
                 )}
             </ScrollView>
         </View>

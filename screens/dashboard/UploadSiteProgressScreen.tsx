@@ -8,6 +8,8 @@ import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { API_URL } from "../../lib/api";
 import { UserInfo } from "../../App";
+import { getBuildsphereAI, analyzeBuildsphereImage, countGlassPanels } from "../../lib/generative-ai";
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface Props {
     visible: boolean;
@@ -32,6 +34,8 @@ export default function UploadSiteProgressScreen({ visible, user, onClose, proje
     const [location, setLocation] = useState("");
     const [notes, setNotes] = useState("");
     const [saving, setSaving] = useState(false);
+    const [analyzing, setAnalyzing] = useState(false);
+    const [glassCount, setGlassCount] = useState<number>(0);
 
     const reset = () => {
         setStep(1);
@@ -41,6 +45,7 @@ export default function UploadSiteProgressScreen({ visible, user, onClose, proje
         setMilestone("");
         setLocation("");
         setNotes("");
+        setGlassCount(0);
         setSaving(false);
     };
 
@@ -73,6 +78,55 @@ export default function UploadSiteProgressScreen({ visible, user, onClose, proje
         ]);
     };
 
+    const handleCountGlass = async () => {
+        console.log("DEBUG: handleCountGlass triggered");
+        if (!photoUri) {
+            console.log("DEBUG: photoUri is null, returning");
+            return;
+        }
+
+        setAnalyzing(true);
+        try {
+            // Convert image to base64
+            const base64 = await FileSystem.readAsStringAsync(photoUri, {
+                encoding: 'base64',
+            });
+
+            const filename = photoUri.split("/").pop() || "photo.jpg";
+            const ext = (filename.split('.').pop() || 'jpeg').toLowerCase();
+            const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+
+            console.log(`DEBUG: Analyzing image. Mime: ${mimeType}, URI: ${photoUri}`);
+            console.log(`DEBUG: Base64 length: ${base64.length}, Start: ${base64.substring(0, 30)}...`);
+
+            const prompt = "Count all the glass panels or windows visible in this construction site photo. Be precise. Return only the number and a very brief description, e.g., '12 glass panels identified'.";
+            
+            const resultData = await countGlassPanels(base64, mimeType);
+            const count = resultData.count || 0;
+            const explanation = resultData.explanation || "";
+            
+            setGlassCount(count);
+            
+            // Append result to notes
+            const newNotes = notes 
+                ? `${notes}\n\nAI Analysis: ${explanation}` 
+                : `AI Analysis: ${explanation}`;
+            setNotes(newNotes);
+            
+            Alert.alert("AI Analysis Complete", `Counted ${count} glass panels.\n\n${explanation}`);
+            setStep(3); // Go to form to see notes
+        } catch (error: any) {
+            console.error("ANALYSIS_ERROR:", error);
+            // Show more detail in the alert for debugging
+            Alert.alert(
+                "AI Error", 
+                `Failed to analyze image.\n\nDetail: ${error.message || "Unknown error"}\n\nCheck your terminal for more info.`
+            );
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!projectName.trim()) { Alert.alert("Missing info", "Please enter a project name."); return; }
         setSaving(true);
@@ -84,6 +138,7 @@ export default function UploadSiteProgressScreen({ visible, user, onClose, proje
             formData.append("location", location);
             formData.append("notes", notes);
             formData.append("userId", String(user.id));
+            formData.append("glassCount", String(glassCount));
 
             if (photoUri) {
                 const filename = photoUri.split("/").pop() || "photo.jpg";
@@ -204,6 +259,21 @@ export default function UploadSiteProgressScreen({ visible, user, onClose, proje
                             >
                                 <Text className="text-[16px] font-bold text-white">Next</Text>
                             </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={handleCountGlass}
+                                disabled={analyzing}
+                                className="h-14 rounded-[16px] items-center justify-center mt-3 flex-row border-2 border-[#D3D0FF] bg-[#F8F7FF]"
+                            >
+                                {analyzing ? (
+                                    <ActivityIndicator color={PRIMARY} />
+                                ) : (
+                                    <>
+                                        <Ionicons name="sparkles" size={20} color={PRIMARY} className="mr-2" />
+                                        <Text className="text-[16px] font-bold text-[#7370FF] ml-2">Count Glass Panels (AI)</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
                         </View>
                     </View>
                 )}
@@ -230,12 +300,25 @@ export default function UploadSiteProgressScreen({ visible, user, onClose, proje
                             <Text className="text-[12px] font-semibold text-[#2D2D2D] mb-1">Partner (from)</Text>
                             <TextInput value={partner} onChangeText={setPartner} style={inputStyle} placeholder="Your name / company" placeholderTextColor="#C0C0C0" />
 
-                            <Text className="text-[12px] font-semibold text-[#2D2D2D] mb-1">Notes</Text>
+                             <Text className="text-[12px] font-semibold text-[#2D2D2D] mb-1">Notes</Text>
                             <TextInput
                                 value={notes} onChangeText={setNotes}
                                 style={{ ...inputStyle, height: 100, textAlignVertical: "top", paddingTop: 12 }}
                                 placeholder="Add notes about this progress update..." placeholderTextColor="#C0C0C0" multiline
                             />
+
+                            {/* Glass Count Display */}
+                            <View className="mb-6 p-4 rounded-2xl bg-[#F8F7FF] border border-[#D3D0FF] flex-row items-center justify-between">
+                                <View className="flex-row items-center">
+                                    <View className="w-10 h-10 rounded-full bg-[#EAE8FF] items-center justify-center mr-3">
+                                        <Ionicons name="apps" size={20} color={PRIMARY} />
+                                    </View>
+                                    <Text className="text-[14px] font-semibold text-[#1E1E1E]">Glass Panels Count</Text>
+                                </View>
+                                <View className="bg-white px-4 py-2 rounded-xl border border-[#E0E0E0]">
+                                    <Text className="text-[18px] font-bold text-[#7370FF]">{glassCount}</Text>
+                                </View>
+                            </View>
                         </ScrollView>
 
                         <View className="px-5 pb-10 pt-3 border-t border-[#F0F0F0]">

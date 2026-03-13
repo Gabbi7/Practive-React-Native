@@ -24,7 +24,7 @@ export default function ProjectCard({ name, location, color, progress = 60, imag
             style={{ shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 }}
         >
             {/* Banner */}
-            <View style={{ backgroundColor: bannerColor, height: 120 }}>
+            <View style={{ backgroundColor: bannerColor, height: 200 }}>
                 {image && (
                     <Image 
                         source={image} 

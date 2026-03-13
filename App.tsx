@@ -59,7 +59,7 @@ export default function App() {
       </SafeAreaProvider>
     );
   }
-
+  
   if (showSignup) {
     return (
       <SafeAreaProvider>

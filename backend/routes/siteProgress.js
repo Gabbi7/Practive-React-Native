@@ -15,13 +15,13 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 // POST /site-progress  — upload photo + form data
 router.post('/', upload.single('photo'), async (req, res) => {
-    const { projectName, partner, milestone, location, notes, userId } = req.body;
+    const { projectName, partner, milestone, location, notes, userId, glassCount } = req.body;
     const photoUrl = req.file ? `/uploads/${req.file.filename}` : null;
     try {
         const result = await pool.query(
-            `INSERT INTO site_progress (project_name, partner, milestone, location, notes, photo_url, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-            [projectName, partner, milestone, location, notes, photoUrl, userId]
+            `INSERT INTO site_progress (project_name, partner, milestone, location, notes, photo_url, user_id, glass_count)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+            [projectName, partner, milestone, location, notes, photoUrl, userId, parseInt(glassCount) || 0]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -37,6 +37,20 @@ router.get('/', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch site progress.' });
+    }
+});
+
+// GET /site-progress/project/:name
+router.get('/project/:name', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM site_progress WHERE project_name = $1 ORDER BY created_at DESC',
+            [req.params.name]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to fetch project progress.' });
     }
 });
 
